@@ -42,6 +42,7 @@ juce::PopupMenu MenuHandler::getMenuForIndex(int menuIndex, const juce::String& 
             // File menu
             if (commandManager) {
                 menu.addCommandItem(commandManager, CommandIDs::openFile);
+                menu.addCommandItem(commandManager, CommandIDs::loadReferenceVocal);
                 juce::PopupMenu recentMenu;
                 if (recentFiles.isEmpty()) {
                     recentMenu.addItem(1, TR("menu.no_recent_files"), false, false);

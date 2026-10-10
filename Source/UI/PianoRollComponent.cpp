@@ -254,6 +254,10 @@ PianoRollComponent::PianoRollComponent()
   waveformBackgroundRenderer = std::make_unique<WaveformBackgroundRenderer>();
   noteRenderer = std::make_unique<NoteRenderer>();
   pitchCurveRenderer = std::make_unique<PitchCurveRenderer>();
+  referenceNoteRenderer = std::make_unique<NoteRenderer>();
+  referenceCurveRenderer = std::make_unique<PitchCurveRenderer>();
+  referenceNoteRenderer->setGreyscale(true);
+  referenceCurveRenderer->setGreyscale(true);
   // Track mode draws inactive regions with their own renderer instances. They
   // get no interaction handlers, so drags, hovers and selections on the
   // active region can never show up in them.
@@ -291,6 +295,8 @@ PianoRollComponent::PianoRollComponent()
   noteRenderer->setPitchToolController(pitchToolController.get());
   noteRenderer->setBoxSelector(boxSelector.get());
   pitchCurveRenderer->setCoordinateMapper(coordMapper.get());
+  referenceNoteRenderer->setCoordinateMapper(coordMapper.get());
+  referenceCurveRenderer->setCoordinateMapper(coordMapper.get());
   previewNoteRenderer->setCoordinateMapper(coordMapper.get());
   previewCurveRenderer->setCoordinateMapper(coordMapper.get());
   pitchCurveRenderer->setSelectHandler(selectHandler_.get());
@@ -562,6 +568,7 @@ void PianoRollComponent::paint(juce::Graphics &g)
     }
 
     drawGameChunksDebugOverlay(g);
+    drawReferenceOverlay(g);
     drawNotes(g, NoteRenderPass::Body);
     drawNotes(g, NoteRenderPass::HoverShadow);
     drawNotes(g, NoteRenderPass::HoveredBody);
@@ -2480,6 +2487,38 @@ void PianoRollComponent::setProject(Project *proj)
 
   updateScrollBars();
   repaint();
+}
+
+void PianoRollComponent::setReferenceProject(Project *proj)
+{
+  referenceProject = proj;
+  referenceNoteRenderer->setProject(proj);
+  referenceCurveRenderer->setProject(proj);
+  repaint();
+}
+
+void PianoRollComponent::drawReferenceOverlay(juce::Graphics &g)
+{
+  if (!referenceProject || referenceProject->getNotes().empty())
+    return;
+
+  // The reference is intentionally read-only and visually subdued. It is
+  // rendered before the editable target so target notes always remain on top.
+  juce::Graphics::ScopedSaveState state(g);
+  g.setOpacity(0.42f);
+
+  referenceNoteRenderer->draw(g, NoteRenderer::Pass::Body, false, getWidth());
+
+  PitchCurveRenderer::Params params;
+  params.showDeltaPitch = true;
+  params.showBasePitch = false;
+  params.showUvInterpolationDebug = false;
+  params.showActualF0Debug = false;
+  params.showCleanedF0Debug = false;
+  params.showVocoderF0Debug = false;
+  params.pitchCurveAlpha = 0.85f;
+  params.componentWidth = getWidth();
+  referenceCurveRenderer->draw(g, params);
 }
 
 void PianoRollComponent::beginLiveRecordingWaveform(

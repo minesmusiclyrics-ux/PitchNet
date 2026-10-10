@@ -94,6 +94,10 @@ public:
 
   // Project
   void setProject(Project *proj);
+  // Read-only secondary project used as a ghost reference. It is never
+  // passed to any interaction/editing controller.
+  void setReferenceProject(Project *proj);
+  Project *getReferenceProject() const { return referenceProject; }
   void beginLiveRecordingWaveform(double sampleRate,
                                   double timelineOffsetSeconds);
   void appendLiveRecordingWaveform(const juce::AudioBuffer<float> &buffer);
@@ -291,6 +295,7 @@ private:
   void drawLoopTimeline(juce::Graphics &g);
   void drawNotes(juce::Graphics &g, NoteRenderPass pass);
   void drawPitchCurves(juce::Graphics &g);
+  void drawReferenceOverlay(juce::Graphics &g);
   void drawPianoKeys(juce::Graphics &g);
   void drawSelectionRect(juce::Graphics &g); // Box selection rectangle
   void drawAudioSourceRegionOverlay(juce::Graphics &g);
@@ -359,6 +364,7 @@ private:
       Note *note); // Recalculate F0 from base pitch + delta after undo/redo
 
   Project *project = nullptr;
+  Project *referenceProject = nullptr;
   PitchUndoManager *undoManager = nullptr;
 
   // New modular components
@@ -372,6 +378,8 @@ private:
   double liveRecordingSampleRate = 0.0;
   std::unique_ptr<NoteRenderer> noteRenderer;
   std::unique_ptr<PitchCurveRenderer> pitchCurveRenderer;
+  std::unique_ptr<NoteRenderer> referenceNoteRenderer;
+  std::unique_ptr<PitchCurveRenderer> referenceCurveRenderer;
   std::unique_ptr<NoteRenderer> previewNoteRenderer;
   std::unique_ptr<PitchCurveRenderer> previewCurveRenderer;
   struct InactiveLayerKey

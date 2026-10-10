@@ -35,6 +35,8 @@ jobs:
           cmake -B build `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
             -DUSE_ASIO=ON `
+            -DUSE_DIRECTML=OFF `
+            -DPITCHNET_DEV_BUILD=ON `
             -DENABLE_NOTE_STRETCH=OFF
 
       - name: Build

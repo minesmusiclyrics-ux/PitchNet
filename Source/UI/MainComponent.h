@@ -322,6 +322,9 @@ private:
   void showAboutPopup();
 
   void loadAudioFile(const juce::File &file);
+  void openReferenceVocal();
+  void loadReferenceVocal(const juce::File &file);
+  void clearReferenceVocal();
   void clearProjectForNewLoad();
   void openProjectFile(const juce::File &file);
   void analyzeAudio();
@@ -344,6 +347,10 @@ private:
 
   std::unique_ptr<EditorController> ownedEditorController;
   EditorController *editorController = nullptr;
+  // Standalone-only secondary analysis engine used for the read-only
+  // reference vocal overlay. It owns an independent Project so loading a
+  // reference can never replace or modify the target vocal project.
+  std::unique_ptr<EditorController> referenceEditorController;
   std::unique_ptr<PitchUndoManager> ownedUndoManager;
   PitchUndoManager *undoManager = nullptr;
   std::unique_ptr<juce::ApplicationCommandManager> commandManager;

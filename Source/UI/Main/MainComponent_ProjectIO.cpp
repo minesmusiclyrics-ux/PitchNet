@@ -338,6 +338,99 @@ void MainComponent::openProjectFile(const juce::File &file) {
   continueOpenWithAudio(audioFile);
 }
 
+void MainComponent::openReferenceVocal() {
+  if (isPluginMode() || isInferenceBusy())
+    return;
+
+  if (!juce::MessageManager::getInstance()->isThisTheMessageThread()) {
+    juce::Component::SafePointer<MainComponent> safeThis(this);
+    juce::MessageManager::callAsync([safeThis]() {
+      if (safeThis != nullptr)
+        safeThis->openReferenceVocal();
+    });
+    return;
+  }
+
+  if (fileChooser != nullptr)
+    return;
+
+  fileChooser = std::make_unique<juce::FileChooser>(
+      "Select Reference Vocal", juce::File{},
+      "*.wav;*.mp3;*.flac;*.aiff;*.ogg;*.m4a");
+
+  const auto chooserFlags = juce::FileBrowserComponent::openMode |
+                            juce::FileBrowserComponent::canSelectFiles;
+  juce::Component::SafePointer<MainComponent> safeThis(this);
+  fileChooser->launchAsync(
+      chooserFlags, [safeThis](const juce::FileChooser &fc) {
+        if (safeThis == nullptr)
+          return;
+        const auto file = fc.getResult();
+        safeThis->fileChooser.reset();
+        if (file.existsAsFile())
+          safeThis->loadReferenceVocal(file);
+      });
+}
+
+void MainComponent::loadReferenceVocal(const juce::File &file) {
+  if (isPluginMode() || !file.existsAsFile() || isInferenceBusy())
+    return;
+
+  clearReferenceVocal();
+
+  referenceEditorController = std::make_unique<EditorController>(false);
+  if (settingsManager) {
+    referenceEditorController->setPitchDetectorType(
+        settingsManager->getPitchDetectorType());
+    referenceEditorController->setSynthesisEngineType(
+        settingsManager->getSynthesisEngineType());
+    referenceEditorController->setDeviceConfig(
+        settingsManager->getDevice(), settingsManager->getGPUDeviceId());
+  }
+
+  toolbar.showProgress("Analyzing reference vocal...");
+  toolbar.setProgress(-1.0f);
+
+  juce::Component::SafePointer<MainComponent> safeThis(this);
+  referenceEditorController->loadAudioFileAsync(
+      file,
+      [safeThis](double progress, const juce::String &) {
+        if (safeThis == nullptr)
+          return;
+        juce::MessageManager::callAsync([safeThis, progress]() {
+          if (safeThis != nullptr)
+            safeThis->toolbar.setProgress(static_cast<float>(progress));
+        });
+      },
+      [safeThis](const juce::AudioBuffer<float> &) {
+        if (safeThis == nullptr)
+          return;
+        auto *referenceProject =
+            safeThis->referenceEditorController
+                ? safeThis->referenceEditorController->getProject()
+                : nullptr;
+        safeThis->pianoRoll.setReferenceProject(referenceProject);
+        safeThis->toolbar.hideProgress();
+        safeThis->repaint();
+        if (safeThis->commandManager)
+          safeThis->commandManager->commandStatusChanged();
+      },
+      [safeThis]() {
+        if (safeThis == nullptr)
+          return;
+        safeThis->toolbar.hideProgress();
+        safeThis->clearReferenceVocal();
+      });
+}
+
+void MainComponent::clearReferenceVocal() {
+  pianoRoll.setReferenceProject(nullptr);
+  if (referenceEditorController) {
+    referenceEditorController->requestShutdown();
+    referenceEditorController.reset();
+  }
+}
+
 void MainComponent::loadAudioFile(const juce::File &file) {
   if (isLoadingAudio.load())
     return;
@@ -449,6 +542,7 @@ void MainComponent::loadAudioFile(const juce::File &file) {
 }
 
 void MainComponent::clearProjectForNewLoad() {
+  clearReferenceVocal();
   isPlaying = false;
   pendingCursorTime.store(0.0);
   hasPendingCursorUpdate.store(false);

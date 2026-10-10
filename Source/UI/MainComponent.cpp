@@ -3731,6 +3731,7 @@ void MainComponent::getAllCommands(juce::Array<juce::CommandID> &commands)
   const juce::CommandID commandArray[] = {
       // File commands
       CommandIDs::openFile,
+      CommandIDs::loadReferenceVocal,
       CommandIDs::saveProject,
       CommandIDs::saveProjectAs,
       CommandIDs::exportAudio,
@@ -3779,6 +3780,15 @@ void MainComponent::getCommandInfo(juce::CommandID commandID,
   case CommandIDs::openFile:
     result.setInfo(TR("command.open_audio"), TR("command.open_audio.desp"), TR("menu.file"), 0);
     result.addDefaultKeypress('o', primaryModifier);
+    break;
+
+  case CommandIDs::loadReferenceVocal:
+    result.setInfo("Load Reference Vocal...",
+                   "Load a second vocal as a read-only pitch reference",
+                   TR("menu.file"), 0);
+    result.setActive(!isPluginMode() && project != nullptr &&
+                     project->getAudioData().waveform.getNumSamples() > 0 &&
+                     !isInferenceBusy());
     break;
 
   case CommandIDs::saveProject:
@@ -3940,6 +3950,10 @@ bool MainComponent::perform(const ApplicationCommandTarget::InvocationInfo &info
   // File commands
   case CommandIDs::openFile:
     this->openFile();
+    return true;
+
+  case CommandIDs::loadReferenceVocal:
+    openReferenceVocal();
     return true;
 
   case CommandIDs::saveProject:
