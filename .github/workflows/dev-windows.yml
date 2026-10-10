@@ -1,0 +1,118 @@
+name: Dev Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-windows-cpu:
+    runs-on: windows-latest
+    name: Windows CPU Dev Build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download Models
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "Resources/models" | Out-Null
+
+          Invoke-WebRequest `
+            -Uri "https://github.com/mdkrain/HachiTune/releases/download/Resources%2Fmodels/rmvpe.onnx" `
+            -OutFile "Resources/models/rmvpe.onnx"
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -DUSE_ASIO=ON `
+            -DENABLE_NOTE_STRETCH=OFF
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build `
+            --config ${{ env.BUILD_TYPE }} `
+            --parallel
+
+      - name: Inspect Build Output
+        shell: pwsh
+        run: |
+          Write-Host "===== EXE files ====="
+          Get-ChildItem -Path build -Recurse -File -Filter *.exe -ErrorAction SilentlyContinue |
+            Select-Object FullName
+
+          Write-Host "===== VST3 directories ====="
+          Get-ChildItem -Path build -Recurse -Directory -Filter *.vst3 -ErrorAction SilentlyContinue |
+            Select-Object FullName
+
+          Write-Host "===== DLL files ====="
+          Get-ChildItem -Path build -Recurse -File -Filter *.dll -ErrorAction SilentlyContinue |
+            Select-Object FullName
+
+      - name: Prepare Package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+
+          # Find the standalone executable automatically.
+          $exeCandidates = Get-ChildItem -Path build -Recurse -File -Filter *.exe |
+            Where-Object {
+              $_.FullName -match "\\${{ env.BUILD_TYPE }}\\" -and
+              $_.Name -notmatch "Test|Helper|juce"
+            }
+
+          if (-not $exeCandidates) {
+            throw "Standalone EXE was not found in the build directory."
+          }
+
+          foreach ($exe in $exeCandidates) {
+            Write-Host "Copying EXE: $($exe.FullName)"
+            Copy-Item $exe.FullName -Destination package -Force
+          }
+
+          # Find complete VST3 bundles automatically.
+          $vst3Candidates = Get-ChildItem -Path build -Recurse -Directory -Filter *.vst3
+
+          foreach ($vst3 in $vst3Candidates) {
+            Write-Host "Copying VST3: $($vst3.FullName)"
+            Copy-Item $vst3.FullName -Destination package -Recurse -Force
+          }
+
+          # Copy runtime DLLs that are placed next to the built executable.
+          foreach ($exe in $exeCandidates) {
+            Get-ChildItem -Path $exe.Directory.FullName -File -Filter *.dll -ErrorAction SilentlyContinue |
+              ForEach-Object {
+                Write-Host "Copying DLL: $($_.FullName)"
+                Copy-Item $_.FullName -Destination package -Force
+              }
+          }
+
+          # Copy model files into a models folder for the standalone test build.
+          if (Test-Path "Resources/models") {
+            New-Item -ItemType Directory -Force -Path "package/models" | Out-Null
+            Copy-Item "Resources/models/*" -Destination "package/models" -Recurse -Force
+          }
+
+          Write-Host "===== PACKAGE CONTENTS ====="
+          Get-ChildItem package -Recurse | Select-Object FullName
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PitchNet-Windows-CPU-Dev
+          path: package/
+          retention-days: 30
+          if-no-files-found: error
