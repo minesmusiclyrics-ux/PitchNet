@@ -20,11 +20,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Download Models
+      - name: Download RMVPE Model
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "Resources/models" | Out-Null
-
           Invoke-WebRequest `
             -Uri "https://github.com/mdkrain/HachiTune/releases/download/Resources%2Fmodels/rmvpe.onnx" `
             -OutFile "Resources/models/rmvpe.onnx"
@@ -46,75 +45,54 @@ jobs:
             --config ${{ env.BUILD_TYPE }} `
             --parallel
 
-      - name: Inspect Build Output
-        shell: pwsh
-        run: |
-          Write-Host "===== EXE files ====="
-          Get-ChildItem -Path build -Recurse -File -Filter *.exe -ErrorAction SilentlyContinue |
-            Select-Object FullName
-
-          Write-Host "===== VST3 directories ====="
-          Get-ChildItem -Path build -Recurse -Directory -Filter *.vst3 -ErrorAction SilentlyContinue |
-            Select-Object FullName
-
-          Write-Host "===== DLL files ====="
-          Get-ChildItem -Path build -Recurse -File -Filter *.dll -ErrorAction SilentlyContinue |
-            Select-Object FullName
-
-      - name: Prepare Package
+      - name: Prepare Portable Package
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
           Remove-Item -Path package -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path package | Out-Null
+          New-Item -ItemType Directory -Force -Path "package/Standalone" | Out-Null
+          New-Item -ItemType Directory -Force -Path "package/VST3" | Out-Null
 
-          # Find the standalone executable automatically.
-          $exeCandidates = Get-ChildItem -Path build -Recurse -File -Filter *.exe |
-            Where-Object {
-              $_.FullName -match "\\${{ env.BUILD_TYPE }}\\" -and
-              $_.Name -notmatch "Test|Helper|juce"
-            }
-
-          if (-not $exeCandidates) {
-            throw "Standalone EXE was not found in the build directory."
+          # Copy the complete standalone build output, including runtime DLLs.
+          $standaloneDir = "build/PitchNet_artefacts/${{ env.BUILD_TYPE }}"
+          if (-not (Test-Path $standaloneDir)) {
+            throw "Standalone output directory not found: $standaloneDir"
           }
 
-          foreach ($exe in $exeCandidates) {
-            Write-Host "Copying EXE: $($exe.FullName)"
-            Copy-Item $exe.FullName -Destination package -Force
-          }
+          Copy-Item -Path "$standaloneDir/*" `
+            -Destination "package/Standalone/" `
+            -Recurse -Force
 
-          # Find complete VST3 bundles automatically.
-          $vst3Candidates = Get-ChildItem -Path build -Recurse -Directory -Filter *.vst3
+          # PitchNet expects local portable model assets under Resources/models.
+          # Copy the complete Resources tree after CMake has downloaded GAME models.
+          Copy-Item -Path "Resources" `
+            -Destination "package/Standalone/Resources" `
+            -Recurse -Force
 
-          foreach ($vst3 in $vst3Candidates) {
-            Write-Host "Copying VST3: $($vst3.FullName)"
-            Copy-Item $vst3.FullName -Destination package -Recurse -Force
-          }
-
-          # Copy runtime DLLs that are placed next to the built executable.
-          foreach ($exe in $exeCandidates) {
-            Get-ChildItem -Path $exe.Directory.FullName -File -Filter *.dll -ErrorAction SilentlyContinue |
+          # Copy the complete VST3 bundle if present.
+          $vst3Root = "build/PitchNetPlugin_artefacts/${{ env.BUILD_TYPE }}/VST3"
+          if (Test-Path $vst3Root) {
+            Get-ChildItem -Path $vst3Root -Directory -Filter "*.vst3" |
               ForEach-Object {
-                Write-Host "Copying DLL: $($_.FullName)"
-                Copy-Item $_.FullName -Destination package -Force
+                Copy-Item -Path $_.FullName `
+                  -Destination "package/VST3/" `
+                  -Recurse -Force
               }
           }
 
-          # Copy model files into a models folder for the standalone test build.
-          if (Test-Path "Resources/models") {
-            New-Item -ItemType Directory -Force -Path "package/models" | Out-Null
-            Copy-Item "Resources/models/*" -Destination "package/models" -Recurse -Force
-          }
+          Write-Host "===== Standalone package ====="
+          Get-ChildItem "package/Standalone" -Recurse |
+            Select-Object FullName
 
-          Write-Host "===== PACKAGE CONTENTS ====="
-          Get-ChildItem package -Recurse | Select-Object FullName
+          Write-Host "===== VST3 package ====="
+          Get-ChildItem "package/VST3" -Recurse |
+            Select-Object FullName
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PitchNet-Windows-CPU-Dev
+          name: PitchNet-Windows-CPU-Dev-Portable
           path: package/
           retention-days: 30
           if-no-files-found: error
