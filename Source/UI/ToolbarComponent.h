@@ -119,6 +119,7 @@ public:
     std::function<void(bool)> onToggleRecord;
     std::function<void(bool)> onToggleAudition;
     std::function<void()> onCorrectPitchCenter;
+    std::function<void()> onLoadReference;
     std::function<void(int)> onScaleRootChanged;
     std::function<void(ScaleMode)> onScaleModeChanged;
     std::function<void(std::optional<int>)> onScaleRootPreviewChanged;
@@ -159,6 +160,7 @@ private:
     Button undoButton;
     Button redoButton;
     ToggleButton parametersButton;
+    Button referenceButton;
     ToggleButton leftPanelButton; // sits in its own group between logo and transport
     bool leftPanelAvailable = false;
     ToggleButton trackViewButton;

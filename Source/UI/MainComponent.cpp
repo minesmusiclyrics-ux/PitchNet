@@ -901,6 +901,10 @@ MainComponent::MainComponent(bool enableAudioDevice)
   {
     pianoRollView.showPitchCenterPopup();
   };
+  toolbar.onLoadReference = [this]
+  {
+    openReferenceVocal();
+  };
   toolbar.setUndoRedoEnabled(undoManager && undoManager->canUndo(),
                              undoManager && undoManager->canRedo());
 
@@ -3786,7 +3790,7 @@ void MainComponent::getCommandInfo(juce::CommandID commandID,
     result.setInfo("Load Reference Vocal...",
                    "Load a second vocal as a read-only pitch reference",
                    TR("menu.file"), 0);
-    result.setActive(!isPluginMode() && project != nullptr &&
+    result.setActive(project != nullptr &&
                      project->getAudioData().waveform.getNumSamples() > 0 &&
                      !isInferenceBusy());
     break;

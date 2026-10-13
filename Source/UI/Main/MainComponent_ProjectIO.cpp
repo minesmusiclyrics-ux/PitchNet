@@ -339,7 +339,12 @@ void MainComponent::openProjectFile(const juce::File &file) {
 }
 
 void MainComponent::openReferenceVocal() {
-  if (isPluginMode() || isInferenceBusy())
+  if (isInferenceBusy())
+    return;
+
+  auto *targetProject = getProject();
+  if (targetProject == nullptr ||
+      targetProject->getAudioData().waveform.getNumSamples() <= 0)
     return;
 
   if (!juce::MessageManager::getInstance()->isThisTheMessageThread()) {
@@ -373,7 +378,7 @@ void MainComponent::openReferenceVocal() {
 }
 
 void MainComponent::loadReferenceVocal(const juce::File &file) {
-  if (isPluginMode() || !file.existsAsFile() || isInferenceBusy())
+  if (!file.existsAsFile() || isInferenceBusy())
     return;
 
   clearReferenceVocal();

@@ -48,6 +48,7 @@ ToolbarComponent::ToolbarComponent()
     addAndMakeVisible(undoButton);
     addAndMakeVisible(redoButton);
     addAndMakeVisible(parametersButton);
+    addChildComponent(referenceButton); // plugin/ARA only
     addChildComponent(leftPanelButton); // shown only in ARA mode
     addChildComponent(trackViewButton); // shown only in ARA mode
 
@@ -65,6 +66,7 @@ ToolbarComponent::ToolbarComponent()
     undoButton.addListener(this);
     redoButton.addListener(this);
     parametersButton.addListener(this);
+    referenceButton.addListener(this);
     leftPanelButton.addListener(this);
     trackViewButton.addListener(this);
 
@@ -106,6 +108,12 @@ ToolbarComponent::ToolbarComponent()
     undoButton.setEnabled(false);
     redoButton.setEnabled(false);
     parametersButton.setToggleState(false, juce::dontSendNotification);
+    referenceButton.setButtonText("Reference");
+    referenceButton.setTooltip("Load Reference Vocal...");
+    referenceButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xFF3A3A3Au));
+    referenceButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xFF4A4A4Au));
+    referenceButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xFFEFEFEFu));
+    referenceButton.setColour(juce::TextButton::textColourOnId, juce::Colour(0xFFFFFFFFu));
     leftPanelButton.setToggleState(false, juce::dontSendNotification);
 
     // Time label with app font (larger and bold for readability)
@@ -202,7 +210,7 @@ void ToolbarComponent::resized()
     // RIGHT SIDE — Parameters button
     // =========================================================================
     const int rightButtonSize = 30;
-    auto rightSection = bounds.removeFromRight(250);
+    auto rightSection = bounds.removeFromRight(referenceButton.isVisible() ? 330 : 250);
 
     // Parameters button — rightmost
     auto paramBtnArea = rightSection.removeFromRight(rightButtonSize + 6);
@@ -210,6 +218,17 @@ void ToolbarComponent::resized()
         paramBtnArea.getRight() - rightButtonSize,
         capsuleY + (capsuleH - rightButtonSize) / 2,
         rightButtonSize, rightButtonSize);
+
+    if (referenceButton.isVisible())
+    {
+        constexpr int referenceButtonWidth = 72;
+        constexpr int referenceButtonHeight = 26;
+        auto referenceArea = rightSection.removeFromRight(referenceButtonWidth + 8);
+        referenceButton.setBounds(
+            referenceArea.getRight() - referenceButtonWidth,
+            capsuleY + (capsuleH - referenceButtonHeight) / 2,
+            referenceButtonWidth, referenceButtonHeight);
+    }
 
     // Everything left of the side-panel button sits 5px further right: the
     // buttons below are laid out from this edge, and the scale selector
@@ -377,6 +396,7 @@ void ToolbarComponent::refreshLocalisedText()
     stopButton.setTooltip(TR("toolbar.stop"));
     loopButton.setTooltip(TR("toolbar.loop"));
     parametersButton.setTooltip(TR("panel.parameters"));
+    referenceButton.setTooltip("Load Reference Vocal...");
     leftPanelButton.setTooltip(TR("panel.tracks"));
     refreshTrackViewTooltip();
 #if JUCE_MAC
@@ -466,6 +486,11 @@ void ToolbarComponent::buttonClicked(juce::Button *button)
         parametersVisible = parametersButton.getToggleState();
         if (onToggleParameters)
             onToggleParameters(parametersVisible);
+    }
+    else if (button == &referenceButton)
+    {
+        if (onLoadReference)
+            onLoadReference();
     }
     else if (button == &leftPanelButton)
     {
@@ -724,6 +749,7 @@ void ToolbarComponent::mouseDoubleClick(const juce::MouseEvent &e)
 void ToolbarComponent::setPluginMode(bool isPlugin)
 {
     pluginMode = isPlugin;
+    referenceButton.setVisible(isPlugin);
 
     playButton.setVisible(true);
     stopButton.setVisible(true);
