@@ -384,13 +384,17 @@ void MainComponent::loadReferenceVocal(const juce::File &file) {
   clearReferenceVocal();
 
   referenceEditorController = std::make_unique<EditorController>(false);
+
+  // Reference analysis is intentionally isolated from the host/plugin inference
+  // settings.  Development builds are CPU-only, while the shared PitchNet
+  // settings may still contain DirectML/CUDA or FCPE from another install.
+  // Use the bundled RMVPE model on CPU for predictable reference analysis.
+  referenceEditorController->setPitchDetectorType(PitchDetectorType::RMVPE);
+  referenceEditorController->setDeviceConfig("CPU", 0);
+
   if (settingsManager) {
-    referenceEditorController->setPitchDetectorType(
-        settingsManager->getPitchDetectorType());
     referenceEditorController->setSynthesisEngineType(
         settingsManager->getSynthesisEngineType());
-    referenceEditorController->setDeviceConfig(
-        settingsManager->getDevice(), settingsManager->getGPUDeviceId());
   }
 
   toolbar.showProgress("Analyzing reference vocal...");
